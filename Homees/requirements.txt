@@ -1,4 +1,4 @@
-# Web
+# -------- Web & Utils --------
 Flask==2.3.3
 Flask-Mail==0.9.1
 gunicorn==23.0.0
@@ -8,15 +8,14 @@ dnspython==2.3.0
 requests==2.32.5
 reportlab==4.4.5
 
-# Image processing
-opencv-python==4.12.0.88
-pillow==12.0.0
-numpy==2.2.6
+# -------- Image & Math --------
+opencv-python==4.9.0.80   # works with numpy 1.x
+pillow==10.4.0
+# IMPORTANT: let pip choose a compatible numpy for TF + OpenCV
+# (will likely be numpy 1.26.x) – so DO NOT pin numpy here
 
-# Torch - CPU ONLY, older & lighter (no nvidia-cuda packages)
-torch==2.2.2
-torchvision==0.17.2
+# -------- Deep Learning (CPU only) --------
 --extra-index-url https://download.pytorch.org/whl/cpu
-
-# TensorFlow - CPU
+torch==2.2.2+cpu
+torchvision==0.17.2+cpu
 tensorflow-cpu==2.15.0
