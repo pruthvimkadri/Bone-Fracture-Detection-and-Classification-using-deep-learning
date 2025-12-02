@@ -9,13 +9,13 @@ requests==2.32.5
 reportlab==4.4.5
 
 # -------- Image & Math --------
-opencv-python==4.9.0.80   # works with numpy 1.x
+numpy==1.26.4
+opencv-python==4.9.0.80
 pillow==10.4.0
-# IMPORTANT: let pip choose a compatible numpy for TF + OpenCV
-# (will likely be numpy 1.26.x) – so DO NOT pin numpy here
 
-# -------- Deep Learning (CPU only) --------
+# -------- Deep Learning (CPU only, PyTorch) --------
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch==2.2.2+cpu
 torchvision==0.17.2+cpu
-tensorflow-cpu==2.15.0
+
+# ❌ NOTE: tensorflow-cpu REMOVED on purpose
