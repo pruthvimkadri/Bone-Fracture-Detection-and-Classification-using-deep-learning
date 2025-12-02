@@ -3,10 +3,14 @@ Flask==2.3.3
 Flask-Mail==0.9.1
 pymongo==4.4.0
 dnspython==2.3.0
-
+flask
 python-dotenv
 pillow
 opencv-python
 numpy
-requests
+torch
+torchvision
+tensorflow
 reportlab
+requests
+
