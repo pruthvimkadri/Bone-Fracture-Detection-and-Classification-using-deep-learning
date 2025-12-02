@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>My Results — Bone Fracture Detection</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+      table { width:100%; border-collapse: collapse; margin-top:12px; }
+      th, td { padding:8px; border:1px solid #eee; text-align:left; }
+      .thumb { max-width:100px; display:block; }
+      .small { font-size:0.9em; color:#666; }
+      .btn { padding:6px 10px; text-decoration:none; background:#1976d2; color:#fff; border-radius:6px; }
+    </style>
+</head>
+<body>
+<header>
+    <h1>My Results</h1>
+    <nav>
+        <a href="{{ url_for('dashboard') }}">Dashboard</a> |
+        <a href="{{ url_for('about') }}">About</a> |
+        <a href="{{ url_for('contact') }}">Contact</a> |
+        <a href="{{ url_for('logout') }}">Logout</a>
+    </nav>
+</header>
+
+<main style="padding:18px; max-width:1100px; margin:auto;">
+    <p class="small">Below are your previous runs. Click *View* to see explainability or *Report* to download the saved report.</p>
+
+    {% if rows|length == 0 %}
+      <div class="flash">No results yet. Upload an X-ray from the dashboard to start.</div>
+    {% else %}
+      <table>
+        <thead>
+          <tr>
+            <th>Preview</th>
+            <th>Filename / Time</th>
+            <th>Stage</th>
+            <th>Prediction</th>
+            <th>Explainability</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for r in rows %}
+          <tr>
+            <td>
+              <img class="thumb" src="{{ url_for('static', filename='uploads/' + r.filename) }}" alt="upload" onerror="this.style.display='none'">
+            </td>
+            <td>
+              <div><strong>{{ r.filename }}</strong></div>
+              <div class="small">{{ r.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</div>
+            </td>
+            <td>
+              {{ r.stage }}
+            </td>
+            <td>
+              <div><strong>{{ r.predicted }}</strong></div>
+              <div class="small">conf: {{ '%.3f'|format(r.confidence or 0) }}</div>
+            </td>
+            <td>
+              <!-- try to show generated explain images if present; these may 404 but onerror hides them -->
+              <div style="display:flex; gap:6px;">
+                <img src="{{ url_for('serve_result_file', filename='gradcam_' + r.filename) }}" class="thumb" alt="gradcam" onerror="this.style.display='none'">
+                <img src="{{ url_for('serve_result_file', filename='canny_'  + r.filename) }}" class="thumb" alt="canny" onerror="this.style.display='none'">
+                <img src="{{ url_for('serve_result_file', filename='hybrid_' + r.filename) }}" class="thumb" alt="hybrid" onerror="this.style.display='none'">
+              </div>
+            </td>
+            <td>
+              <a class="btn" href="{{ url_for('explain', image_name=r.filename) }}">View</a>
+              {% if r.report_path %}
+                <a class="btn" href="{{ url_for('serve_result_file', filename=r.report_path|replace('../','') ) }}">Report</a>
+              {% else %}
+                <a class="btn" href="{{ url_for('generate_report', result_id=r.id) }}">Generate Report</a>
+              {% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% endif %}
+</main>
+
+<footer style="text-align:center; padding:12px; margin-top:36px;">
+    <p>© 2025 Bone Fracture Detection System | Powered by AI</p>
+</footer>
+</body>
+</html>

@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Home</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <nav>
+      <div class="logo">Frac-AI</div>
+      <ul>
+          <li><a href="{{ url_for('dashboard') }}">Home</a></li>
+          <li><a href="{{ url_for('about') }}">About</a></li>
+          <li><a href="{{ url_for('contact') }}">Contact</a></li>
+          <li><a href="{{ url_for('login') }}">Login</a></li>
+          <li><a href="{{ url_for('signup') }}">Signup</a></li>
+      </ul>
+  </nav>
+
+  <section class="hero">
+      <h1>WELCOME TO-AI POWERED BONE FRACTURE DETECTION </h1>
+      <p>Detect and Classify Bone Fractures with AI Assistance</p>
+  </section>
+
+  <!-- Flash Messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="flashed-message" data-message="{{ message }}"></div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Contact Us</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <nav>
+    <div class="logo">Frac-AI</div>
+    <ul>
+      <li><a href="{{ url_for('home') }}">Home</a></li>
+      <li><a href="{{ url_for('about') }}">About</a></li>
+      <li><a href="{{ url_for('contact') }}">Contact</a></li>
+      <li><a href="{{ url_for('login') }}">Login</a></li>
+      <li><a href="{{ url_for('signup') }}">Signup</a></li>
+    </ul>
+  </nav>
+
+  <section id="contact">
+    <h2>Contact Us</h2>
+    
+    <div class="team-grid">
+      <div class="team-card">
+        <i class="fas fa-user"></i>
+        <p>Pruthvi M Kadri</p>
+        <i class="fas fa-envelope"></i>
+        <p>pruthvi@gmail.com</p>
+        <i class="fas fa-phone"></i>
+        <p>+91-9876543210</p>
+      </div>
+      <div class="team-card">
+        <i class="fas fa-user"></i>
+        <p>Mehak Sharma</p>
+        <i class="fas fa-envelope"></i>
+        <p>mehak@gmail.com</p>
+        <i class="fas fa-phone"></i>
+        <p>+91-9876543211</p>
+      </div>
+      <div class="team-card">
+        <i class="fas fa-user"></i>
+        <p>Moulya Suvarna</p>
+        <i class="fas fa-envelope"></i>
+        <p>moulya@gmail.com</p>
+        <i class="fas fa-phone"></i>
+        <p>+91-9876543212</p>
+      </div>
+      <div class="team-card">
+        <i class="fas fa-user"></i>
+        <p>Pooja</p>
+        <i class="fas fa-envelope"></i>
+        <p>pooja@gmail.com</p>
+        <i class="fas fa-phone"></i>
+        <p>+91-9876543213</p>
+      </div>
+    </div>
+  </section>
+</body>
+</html>

@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Verify OTP</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="auth-container">
+    <h2>Enter OTP</h2>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flashed-message" data-message="{{ message }}"></div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <!-- ✅ SINGLE CORRECT FORM -->
+    <form method="POST" action="{{ url_for('otp_verify') }}">
+      <input type="hidden" name="email" value="{{ email }}">
+      
+      <div class="form-group">
+        <label>Enter the OTP sent to {{ email }}</label>
+        <input type="text" name="otp" placeholder="Enter OTP" required>
+      </div>
+
+      <button type="submit" class="btn btn-primary">Verify OTP</button>
+    </form>
+
+    <p>OTP valid for <span id="timer" data-time="90">90</span> seconds</p>
+
+    <!-- Resend only if route exists -->
+    <button id="resendBtn" 
+            {% if email %} data-url="{{ url_for('resend_otp', email=email) }}" {% endif %}
+            style="display:none;">
+        Resend OTP
+    </button>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>

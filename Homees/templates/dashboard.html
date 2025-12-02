@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>X-Ray Analysis Dashboard | Frac-AI</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}" />
+  <style>
+    /* --- visual styles (kept from your version, small tweaks to avoid overlap) --- */
+    body {
+      font-family: "Poppins", sans-serif;
+      background: linear-gradient(90deg, rgba(28,166,156,0.95), rgba(16,119,123,0.95));
+      color: white;
+      text-align: center;
+      margin: 0;
+      padding: 0;
+    }
+    header {
+      background: rgba(0, 0, 0, 0.4);
+      padding: 20px 0;
+      border-bottom: 2px solid #00ffff;
+    }
+    h1 { color: #00ffff; margin: 0; }
+    h2 { color: #b0f0ff; margin: 5px 0 0; }
+    form {
+      margin: 20px auto;
+      background: rgba(255,255,255,0.1);
+      padding: 20px;
+      border-radius: 12px;
+      width: 80%;
+      max-width: 600px;
+      border: 1px solid #00ffff;
+    }
+    input[type="file"] {
+      margin: 10px 0;
+      padding: 6px;
+      border-radius: 5px;
+      background: #001f3f;
+      color: white;
+      width: 100%;
+      box-sizing: border-box;
+    }
+    button {
+      background: #00ffff;
+      border: none;
+      color: #000;
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: 0.2s ease-in-out;
+    }
+    button:hover { background: #03d7c2; transform: translateY(-1px); }
+
+    .image-preview img { margin-top: 15px; max-width: 360px; border: 3px solid #00ffff; border-radius: 10px; }
+    #resultSection { margin-top: 25px; text-align: center; }
+    .result-box {
+      background-color: rgba(0,0,0,0.55);
+      color: #fff;
+      padding: 18px;
+      border-radius: 12px;
+      margin-top: 20px;
+      width: 92%;
+      max-width: 1100px;
+      margin-left: auto;
+      margin-right: auto;
+      border: 1px solid #00ffff;
+      text-align: left;
+      box-sizing: border-box;
+    }
+    .result-box h3 { color: #00ffff; text-align: center; margin-top: 0; }
+    .viz {
+      display: flex;
+      justify-content: center;
+      gap: 18px;
+      flex-wrap: wrap;
+      margin-top: 12px;
+    }
+    .viz-card { width: 220px; text-align: center; }
+    .viz img { width: 100%; height: auto; border-radius: 10px; border: 2px solid #00ffff; transition: transform .2s, box-shadow .2s; }
+    .viz img:hover { transform: scale(1.04); box-shadow: 0 6px 18px rgba(0,0,0,0.5); }
+    .tooltip {
+      display:block;
+      margin-top:8px;
+      color:#cceeff;
+      font-size:0.85rem;
+    }
+    .explanation-card {
+      background: rgba(255,255,255,0.03);
+      padding: 12px;
+      border-radius: 10px;
+      border: 1px solid rgba(255,255,255,0.08);
+      margin-top: 18px;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    .download-btn { display:inline-block; background:linear-gradient(90deg,#00c6ff,#0072ff); color:white; padding:10px 22px; border-radius:30px; text-decoration:none; font-weight:500; margin-top:14px; }
+    .small-meta { color: #c6efff; font-size:0.9rem; margin-bottom:8px; }
+    .warning { color: #ffdd57; font-weight:600; }
+    /* responsive */
+    @media (max-width:720px) {
+      .viz-card { width: 46%; }
+      .image-preview img { max-width: 90%; }
+    }
+    @media (max-width:440px) {
+      .viz-card { width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Welcome, {{ user }}</h1>
+    <h2>X-Ray Analysis Dashboard</h2>
+    <p>Upload your X-Ray image for AI-based validation and fracture detection.</p>
+  </header>
+
+  <!-- NOTE: intentionally no action attribute so browser won't navigate to the JSON response -->
+  <form id="uploadForm" method="POST" enctype="multipart/form-data" novalidate>
+    <label for="fileInput">Choose X-Ray Image:</label><br />
+    <input type="file" id="fileInput" name="file" accept="image/*" required /><br />
+    <button type="submit" id="uploadBtn">Upload and Analyze</button>
+  </form>
+
+  <section id="resultSection">
+    <div class="image-preview" id="uploadedImage" style="display:none;">
+      <h3>Uploaded Image</h3>
+      <img id="xrayDisplay" src="" alt="Uploaded X-Ray" />
+    </div>
+
+    <div class="result-box" id="resultBox">
+      <h3>AI Result Summary</h3>
+      <p>Upload an image to see the AI analysis here.</p>
+    </div>
+  </section>
+
+  <footer style="padding:18px; text-align:center; color:#cceeff;">
+    <p>© 2025 Frac-AI | Bone Fracture Detection System | Powered by AI</p>
+  </footer>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const uploadForm = document.getElementById("uploadForm");
+  const fileInput = document.getElementById("fileInput");
+  const resultBox = document.getElementById("resultBox");
+  const uploadedImageDiv = document.getElementById("uploadedImage");
+  const xrayDisplay = document.getElementById("xrayDisplay");
+
+  uploadForm.addEventListener("submit", async (e) => {
+    e.preventDefault();                // IMPORTANT: prevent normal navigation
+    e.stopPropagation();
+
+    const file = fileInput.files[0];
+    if (!file) {
+      alert("Please select an X-ray image first!");
+      return;
+    }
+
+    resultBox.innerHTML = "<p class='small-meta'>⏳ Uploading & analyzing image — please wait...</p>";
+    uploadedImageDiv.style.display = "none";
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const resp = await fetch("{{ url_for('xrayvalidation') }}", {
+        method: "POST",
+        headers: {
+          "X-Requested-With": "XMLHttpRequest",
+          "Accept": "application/json"
+        },
+        body: formData
+      });
+
+      // Always parse JSON (server responds JSON)
+      const data = await resp.json();
+      console.log("AI Response:", data);
+
+      if (data.error) {
+        resultBox.innerHTML = `<p style="color:#ffb3b3">❌ ${data.error}</p>`;
+        return;
+      }
+
+      // show uploaded image preview
+      uploadedImageDiv.style.display = "block";
+      xrayDisplay.src = `/static/uploads/${encodeURIComponent(data.image_name)}`;
+
+      // Map validation code to nice text
+      const validationMap = {
+        "bone_xray": "Bone X-Ray",
+        "non_bone_xray": "Non-Bone X-Ray",
+        "not_xray": "Not an X-Ray",
+        "error": "Validation Error"
+      };
+      const humanValidation = validationMap[data.validation] || data.validation;
+
+      // If not a bone xray -> show small message only, do not display viz
+      if (data.validation !== "bone_xray") {
+        resultBox.innerHTML = `
+          <h3>AI Result Summary</h3>
+          <p><strong>✅ X-Ray Validation:</strong> ${humanValidation}</p>
+          <p class="warning">⚠️ This image is not a valid Bone X-Ray. The system will not run further analysis.</p>
+          <div style="margin-top:12px;">
+            <a href="#" class="download-btn" onclick="alert('No report available for invalid X-Ray')">📄 No report</a>
+          </div>
+        `;
+        return;
+      }
+
+      // Build visualization HTML (only if files present)
+      const vizParts = [];
+
+      if (data.image_name) {
+        vizParts.push(`
+          <div class="viz-card">
+            <img src="/static/uploads/${encodeURIComponent(data.image_name)}" alt="Original">
+            <div class="tooltip">Original X-Ray</div>
+            <div style="margin-top:8px"><small>Original</small></div>
+          </div>`);
+      }
+      if (data.gradcam) {
+        vizParts.push(`
+          <div class="viz-card">
+            <img src="/static/results/${encodeURIComponent(data.gradcam)}" alt="Grad-CAM">
+            <div class="tooltip">Grad-CAM (AI attention heatmap)</div>
+            <div style="margin-top:8px"><small>Grad-CAM</small></div>
+          </div>`);
+      }
+      if (data.canny) {
+        vizParts.push(`
+          <div class="viz-card">
+            <img src="/static/results/${encodeURIComponent(data.canny)}" alt="Canny">
+            <div class="tooltip">Canny edges</div>
+            <div style="margin-top:8px"><small>Canny Edges</small></div>
+          </div>`);
+      }
+      if (data.hybrid) {
+        vizParts.push(`
+          <div class="viz-card">
+            <img src="/static/results/${encodeURIComponent(data.hybrid)}" alt="Hybrid">
+            <div class="tooltip">Hybrid overlay (Grad-CAM + edges)</div>
+            <div style="margin-top:8px"><small>Hybrid Visualization</small></div>
+          </div>`);
+      }
+
+      // Fracture type text
+      const fractureText = data.multiclass ? data.multiclass : "Unknown";
+      const binaryText = data.binary ? data.binary : "Unknown";
+      const binaryConfidence = (data.binary_confidence !== undefined && data.binary_confidence !== null)
+                               ? (data.binary_confidence * 100).toFixed(2) + "%" : "N/A";
+      const multiclassConfidence = (data.multiclass_confidence !== undefined && data.multiclass_confidence !== null)
+                                   ? (data.multiclass_confidence * 100).toFixed(2) + "%" : "N/A";
+
+      resultBox.innerHTML = `
+        <h3>AI Result Summary</h3>
+        <p><strong>✅ X-Ray Validation:</strong> ${humanValidation}</p>
+        <p class="small-meta"><strong>🧠 Binary Classification:</strong> ${binaryText} — <strong>Confidence:</strong> ${binaryConfidence}</p>
+        <p class="small-meta"><strong>🔬 Fracture Type:</strong> ${fractureText} ${data.multiclass ? `— <strong>Confidence:</strong> ${multiclassConfidence}` : ""}</p>
+
+        <div class="viz">${vizParts.join("")}</div>
+
+        <div class="explanation-card">
+          <h4>AI Explainability Module</h4>
+          <div id="explainText">
+            ${data.binary === "Fractured" ?
+              `<p>The AI detected a <strong>fracture</strong>. Grad-CAM focuses the attention on areas of discontinuity; the Hybrid view overlays edges to localize the region. Please consult a radiologist for confirmation.</p>
+               <p><strong>Detected type:</strong> ${fractureText} ${data.multiclass_confidence ? `(${multiclassConfidence})` : ""}</p>` :
+              `<p>The AI classified this X-ray as <strong>Normal</strong> (no fracture). Grad-CAM highlights edges to confirm intact bone structure.</p>`}
+          </div>
+        </div>
+
+        <div style="text-align:center; margin-top:12px;">
+          ${data.result_id ? `<a class="download-btn" href="/generate_report/${data.result_id}">📄 Download AI Diagnosis Report</a>` : `<a class="download-btn" href="#" onclick="alert('No report available')">📄 No report</a>`}
+        </div>
+      `;
+
+    } catch (err) {
+      console.error("Upload/analysis error:", err);
+      resultBox.innerHTML = `<p style="color:#ffb3b3">⚠️ Error analyzing the image. ${err.message}</p>`;
+    }
+  });
+
+  // Prevent default navigation if user accidentally triggers enter or other submit
+  uploadForm.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") ev.preventDefault();
+  });
+});
+</script>
+</body>
+</html>

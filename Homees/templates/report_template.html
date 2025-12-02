@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Explainability Report</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/stylee.css') }}">
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Poppins', sans-serif;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 16px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.1);
+            padding: 30px 50px;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            font-size: 28px;
+        }
+        .meta {
+            text-align: center;
+            font-size: 14px;
+            color: #555;
+            margin-bottom: 20px;
+        }
+        .section {
+            margin-bottom: 35px;
+        }
+        .section h2 {
+            color: #2c3e50;
+            font-size: 20px;
+            border-bottom: 2px solid #007bff;
+            display: inline-block;
+            padding-bottom: 4px;
+        }
+        .image-grid {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 25px;
+            margin-top: 20px;
+        }
+        .image-card {
+            text-align: center;
+            background: #fafafa;
+            border-radius: 10px;
+            padding: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.08);
+            width: 300px;
+        }
+        .image-card img {
+            width: 100%;
+            border-radius: 8px;
+        }
+        .image-card p {
+            font-size: 14px;
+            color: #333;
+            margin-top: 8px;
+        }
+        .result-summary {
+            background: #eef6ff;
+            border-left: 4px solid #007bff;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        .result-summary strong {
+            color: #007bff;
+        }
+        .footer {
+            text-align: center;
+            margin-top: 40px;
+        }
+        .btn-download {
+            background-color: #007bff;
+            color: #fff;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            cursor: pointer;
+            text-decoration: none;
+        }
+        .btn-download:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🦴 AI Explainability Report</h1>
+    <div class="meta">
+        <p>Report generated on: <strong>{{ timestamp }}</strong></p>
+        <p>Model Used: <strong>{{ model_name }}</strong></p>
+        <p>Patient ID: <strong>{{ patient_id }}</strong></p>
+    </div>
+
+    <div class="section result-summary">
+        <p><strong>Binary Classification:</strong> {{ binary_class }} ({{ binary_confidence }}%)</p>
+        {% if multi_class %}
+        <p><strong>Multi-Class Prediction:</strong> {{ multi_class }} ({{ multi_confidence }}%)</p>
+        {% endif %}
+        <p><strong>AI Confidence:</strong> {{ ai_confidence }}%</p>
+    </div>
+
+    <div class="section">
+        <h2>Explainability Visualizations</h2>
+        <div class="image-grid">
+            <div class="image-card">
+                <img src="{{ url_for('static', filename='results/' + gradcam_image) }}" alt="Grad-CAM Visualization">
+                <p><strong>Grad-CAM Visualization</strong></p>
+            </div>
+            <div class="image-card">
+                <img src="{{ url_for('static', filename='results/' + canny_image) }}" alt="Canny Edge Detection">
+                <p><strong>Canny Edge Detection</strong></p>
+            </div>
+            <div class="image-card">
+                <img src="{{ url_for('static', filename='results/' + hybrid_image) }}" alt="Hybrid Visualization">
+                <p><strong>Hybrid (Grad-CAM + Canny)</strong></p>
+            </div>
+        </div>
+    </div>
+
+    <div class="section">
+        <h2>AI Observations</h2>
+        <p>{{ ai_summary }}</p>
+    </div>
+
+    <div class="footer">
+        <a href="{{ url_for('download_report', report_id=report_id) }}" class="btn-download">⬇ Download PDF Report</a>
+    </div>
+</div>
+
+</body>
+</html>

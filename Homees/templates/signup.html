@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Signup</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+  <div class="auth-container">
+    <h2>Signup</h2>
+
+    <!-- Flash Messages -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="flashed-message" data-message="{{ message }}"></div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="POST">
+      <input type="text" name="first_name" placeholder="First Name" required>
+      <input type="text" name="middle_name" placeholder="Middle Name">
+      <input type="text" name="last_name" placeholder="Last Name" required>
+      <input type="email" name="email" placeholder="Email" required>
+      
+      <input type="tel" id="phone" name="phone"  placeholder="Phone Number"      maxlength="10" pattern="[0-9]{10}" title="Enter a valid 10-digit phone number" required>
+
+      <div class="gender-group">
+          <label><input type="radio" name="gender" value="Male" required> M</label>
+          <label><input type="radio" name="gender" value="Female"> F</label>
+          <label><input type="radio" name="gender" value="Other"> O</label>
+      </div>
+
+
+
+      
+    <input type="number" id="age" name="age" placeholder="Enter your age" required min="1" max="999" oninput="if(this.value.length>3)this.value=this.value.slice(0,3)">
+
+<input type="password" 
+       name="password"
+       required
+       pattern="^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[?=.*[A-Za-z0-9]).{8,}$"
+       title="Must be at least 8 characters, include uppercase, lowercase, number, and special character.">
+
+<input 
+  type="password" 
+  id="confirm_password" 
+  name="confirm_password" 
+  placeholder="Confirm Password" 
+  required 
+  oninput="checkPasswordMatch()"
+/>
+      <button type="submit">Signup</button>
+    </form>
+
+    <a href="{{ url_for('login') }}">Already have an account? Login</a>
+  </div>
+
+  <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
