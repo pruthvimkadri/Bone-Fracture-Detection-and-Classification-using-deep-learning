@@ -19,21 +19,8 @@ from PIL import Image, ImageOps
 import numpy as np
 import cv2
 
-# ML libs
-try:
-    import tensorflow as tf
-    from tensorflow.keras.models import load_model
-    # image utilities
-    from tensorflow.keras.preprocessing.image import load_img, img_to_array
-    TF_AVAILABLE = True
-except Exception:
-    # If TF import fails, we still want app to run; TF_AVAILABLE False
-    TF_AVAILABLE = False
-    load_model = None
-    # define placeholders to avoid NameError if referenced accidentally
-    def load_img(*a, **k): raise RuntimeError("TF not available")
-    def img_to_array(*a, **k): raise RuntimeError("TF not available")
-
+# ---- PyTorch imports (preferred) ----
+TORCH_AVAILABLE = False
 try:
     import torch
     import torch.nn.functional as F
@@ -69,6 +56,7 @@ load_dotenv()
 BASE_DIR = os.path.abspath(os.path.dirname(__file__))
 STATIC_DIR = os.path.join(BASE_DIR, 'static')
 MODEL_DIR = os.path.join(STATIC_DIR, 'models')
+os.makedirs(MODEL_DIR, exist_ok=True)
 UPLOAD_FOLDER = os.path.join(STATIC_DIR, 'uploads')
 RESULT_FOLDER = os.path.join(STATIC_DIR, 'results')
 TEMPLATE_FOLDER = os.path.join(BASE_DIR, 'templates')
@@ -93,8 +81,8 @@ _mail_pass = os.getenv("MAIL_PASSWORD")
 print(f"[DEBUG] MAIL_USERNAME: {_mail_user}")
 print(f"[DEBUG] MAIL_PASSWORD present: {bool(_mail_pass)}")
 
-# Paths to model files (expected)
-KERAS_XRAY_PATH = os.path.join(MODEL_DIR, 'mobilenetv2_xray_classifier.h5')
+# ---- Model paths (Keras .h5 removed) ----
+XRAY_PTH_PATH = os.path.join(MODEL_DIR, 'xray_validation_model.pt')   # new PyTorch xray model
 BINARY_PTH_PATH = os.path.join(MODEL_DIR, 'binary_classifier.pt')
 MULTI_PTH_PATH = os.path.join(MODEL_DIR, 'multi_classifier.pth')
 
@@ -149,8 +137,11 @@ def init_db():
 
 init_db()
 
-# ---- Model loading ----
-xray_model = None
+# ---- Model globals ----
+xray_torch_model = None
+xray_num_classes = None
+xray_class_map = {0: "bone_xray", 1: "non_bone_xray", 2: "non_xray"}
+
 binary_model = None
 multi_model = None
 binary_num_classes = None
@@ -160,22 +151,11 @@ torch_transform = None
 def safe_log(msg, level='INFO'):
     print(f"{datetime.now().isoformat()} [{level}] {msg}")
 
+# ---- Model loader (minimal changes; loads xray .pt) ----
 def try_load_models():
-    global xray_model, binary_model, multi_model, torch_transform, binary_num_classes, multi_num_classes
+    global xray_torch_model, xray_num_classes, binary_model, multi_model, torch_transform, binary_num_classes, multi_num_classes, xray_class_map
 
-    # Load Keras X-ray model (MobileNetV2 fine-tuned 3-class expected)
-    if TF_AVAILABLE and os.path.exists(KERAS_XRAY_PATH):
-        try:
-            xray_model = load_model(KERAS_XRAY_PATH)
-            safe_log(f"✅ Loaded Keras X-ray model: {KERAS_XRAY_PATH}")
-        except Exception as e:
-            safe_log(f"Failed to load Keras model: {e}", level='ERROR')
-            xray_model = None
-    else:
-        safe_log("Keras not available or X-ray model not present. Using heuristic.", level='WARN')
-        xray_model = None
-
-    # Prepare Torch transforms
+    # Torch transforms: used for all PyTorch models
     if TORCH_AVAILABLE:
         torch_transform = transforms.Compose([
             transforms.Resize((224, 224)),
@@ -186,24 +166,79 @@ def try_load_models():
     else:
         torch_transform = None
 
-    # Load binary classifier (PyTorch)
+    # ------------------ Load PyTorch X-ray validation model ------------------
+    safe_log(f"🔍 Looking for PyTorch X-ray model at: {XRAY_PTH_PATH}")
+    xray_torch_model = None
+    xray_num_classes = None
+    if TORCH_AVAILABLE and os.path.exists(XRAY_PTH_PATH):
+        try:
+            state = torch.load(XRAY_PTH_PATH, map_location=torch.device('cpu'))
+
+            # If saved object is a full model instance:
+            if hasattr(state, 'eval') and hasattr(state, 'state_dict'):
+                try:
+                    state.eval()
+                    xray_torch_model = state
+                    with torch.no_grad():
+                        out = xray_torch_model(torch.zeros(1,3,224,224))
+                        xray_num_classes = int(out.shape[1]) if out.dim()>1 else 1
+                except Exception as e:
+                    safe_log(f"Loaded object as model but inference failed: {e}", "WARN")
+                    xray_torch_model = state
+            else:
+                # treat as state_dict
+                sd = state
+                if 'model_state_dict' in state and isinstance(state['model_state_dict'], dict):
+                    sd = state['model_state_dict']
+
+                inferred_num = None
+                for k, v in sd.items():
+                    if k.endswith('fc.weight') or ('classifier' in k and k.endswith('weight')):
+                        try:
+                            inferred_num = int(v.shape[0])
+                            break
+                        except Exception:
+                            continue
+
+                num_classes = int(inferred_num or 3)  # default fallback to 3
+                res = torchvision.models.resnet50(weights=None)
+                in_features = res.fc.in_features
+                res.fc = torch.nn.Linear(in_features, num_classes)
+                try:
+                    res.load_state_dict(sd, strict=False)
+                    res.eval()
+                    xray_torch_model = res
+                    xray_num_classes = num_classes
+                except Exception as e:
+                    safe_log(f"Failed to load xray state_dict into resnet skeleton: {e}", "ERROR")
+                    xray_torch_model = None
+
+            if xray_torch_model:
+                safe_log(f"✅ Loaded PyTorch X-ray model (num_classes={xray_num_classes})")
+            else:
+                safe_log("❌ Could not materialize PyTorch xray model.", "ERROR")
+        except Exception as e:
+            safe_log(f"PyTorch X-ray load error: {e}", level='ERROR')
+            xray_torch_model = None
+    else:
+        safe_log("Torch not available or PyTorch X-ray model missing.", level='WARN')
+        xray_torch_model = None
+
+    # ------------------ Binary model loader (existing) ------------------
     safe_log(f"🔍 Looking for binary model at: {BINARY_PTH_PATH}")
     if TORCH_AVAILABLE and os.path.exists(BINARY_PTH_PATH):
         try:
             state = torch.load(BINARY_PTH_PATH, map_location=torch.device('cpu'))
-            # attempt to infer classes and load into a resnet50 skeleton
             inferred_num = None
             if isinstance(state, dict):
                 for k, v in state.items():
                     if k.endswith('fc.weight') and hasattr(v, 'shape'):
-                        inferred_num = int(v.shape[0])
-                        break
+                        inferred_num = int(v.shape[0]); break
                 if 'model_state_dict' in state and (inferred_num is None):
                     sd = state['model_state_dict']
                     for k, v in sd.items():
                         if k.endswith('fc.weight') and hasattr(v, 'shape'):
-                            inferred_num = int(v.shape[0])
-                            break
+                            inferred_num = int(v.shape[0]); break
                     state = sd
             res = torchvision.models.resnet50(weights=None)
             in_features = res.fc.in_features
@@ -224,7 +259,7 @@ def try_load_models():
         safe_log("Torch not available or binary model missing.", level='WARN')
         binary_model = None
 
-    # Load multi classifier (PyTorch)
+    # ------------------ Multi model loader (existing) ------------------
     if TORCH_AVAILABLE and os.path.exists(MULTI_PTH_PATH):
         try:
             state = torch.load(MULTI_PTH_PATH, map_location=torch.device('cpu'))
@@ -232,14 +267,12 @@ def try_load_models():
             if isinstance(state, dict):
                 for k, v in state.items():
                     if k.endswith('fc.weight') and hasattr(v, 'shape'):
-                        inferred_num = int(v.shape[0])
-                        break
+                        inferred_num = int(v.shape[0]); break
                 if 'model_state_dict' in state and (inferred_num is None):
                     sd = state['model_state_dict']
                     for k, v in sd.items():
                         if k.endswith('fc.weight') and hasattr(v, 'shape'):
-                            inferred_num = int(v.shape[0])
-                            break
+                            inferred_num = int(v.shape[0]); break
                     state = sd
             res = torchvision.models.resnet50(weights=None)
             in_features = res.fc.in_features
@@ -259,6 +292,17 @@ def try_load_models():
     else:
         safe_log("Torch not available or multi model missing.", level='WARN')
         multi_model = None
+
+    # Optional env override for class mapping
+    try:
+        env_map = os.getenv("XRAY_CLASS_MAP")
+        if env_map:
+            parsed = json.loads(env_map)
+            xray_class_map = {int(k): str(v) for k, v in parsed.items()}
+            safe_log(f"Using XRAY_CLASS_MAP from env: {xray_class_map}")
+    except Exception as e:
+        safe_log(f"Failed to parse XRAY_CLASS_MAP env var: {e}", "WARN")
+
 
 # initial load
 try_load_models()
@@ -289,7 +333,7 @@ def send_otp_email(to_email, otp_code):
         return False, str(e)
 
 # ===============================
-# NOTE: Modified to include fracture_type argument and store it.
+# Database save helper
 # ===============================
 def save_result_record(user_id, filename, stage, predicted, confidence, gradcam=None, canny=None, hybrid=None, report_path=None, fracture_type=None):
     conn = get_db()
@@ -312,70 +356,7 @@ def get_user_by_email(email):
     conn.close()
     return row
 
-# ---- ML helpers ----
-
-# Keras grad-cam (generic)
-def generate_gradcam_keras(img_path, out_path, model=None, input_size=(224,224)):
-    if not TF_AVAILABLE or model is None:
-        raise RuntimeError("Keras not available or model not loaded")
-    img = Image.open(img_path).convert('RGB')
-    img = img.resize(input_size)
-    x = np.array(img)/255.0
-    x_batch = np.expand_dims(x, axis=0).astype(np.float32)
-
-    preds = model.predict(x_batch)
-    # adapt to multiple output shapes
-    if isinstance(preds, list):
-        preds_arr = np.array(preds[-1])
-    else:
-        preds_arr = np.array(preds)
-
-    try:
-        pred_index = int(np.argmax(preds_arr[0]))
-    except Exception:
-        if preds_arr.ndim == 1:
-            pred_index = int(np.argmax(preds_arr))
-        else:
-            pred_index = 0
-
-    # find last conv layer
-    last_conv = None
-    for layer in reversed(model.layers):
-        try:
-            shape = getattr(layer.output, 'shape', None)
-            if shape is not None and len(shape) == 4:
-                last_conv = layer.name
-                break
-        except Exception:
-            continue
-    if last_conv is None:
-        last_conv = model.layers[-1].name
-
-    grad_model = tf.keras.models.Model([model.inputs], [model.get_layer(last_conv).output, model.output])
-    with tf.GradientTape() as tape:
-        conv_outputs, predictions = grad_model(x_batch)
-        if isinstance(predictions, list):
-            pred = predictions[-1][:, pred_index]
-        else:
-            pred = predictions[:, pred_index]
-    grads = tape.gradient(pred, conv_outputs)
-    guided_grads = tf.reduce_mean(grads, axis=(1, 2))
-    conv_outputs = conv_outputs[0].numpy()
-    weights = guided_grads[0].numpy()
-    cam = np.zeros(conv_outputs.shape[0:2], dtype=np.float32)
-    for i, w in enumerate(weights):
-        cam += w * conv_outputs[:, :, i]
-    cam = np.maximum(cam, 0)
-    cam = cam / (np.max(cam) + 1e-8)
-    cam = cv2.resize(cam, (x.shape[1], x.shape[0]))
-    heatmap = (cam * 255).astype(np.uint8)
-    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
-    orig = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
-    overlay = cv2.addWeighted(orig, 0.6, heatmap, 0.4, 0)
-    cv2.imwrite(out_path, overlay)
-    return out_path
-
-# Canny and hybrid generation
+# ---- Visualization helpers ----
 def generate_canny(img_path, out_path):
     img = cv2.imread(img_path, 0)
     if img is None:
@@ -401,7 +382,88 @@ def generate_hybrid(gradcam_path, canny_path, out_path):
     cv2.imwrite(out_path, hybrid)
     return out_path
 
-# Prediction wrappers
+# ---- PyTorch Grad-CAM (for ResNet-like models) ----
+def generate_gradcam_torch(img_path, out_path, model, transform, target_index=None):
+    """
+    Produces a Grad-CAM overlay saved to out_path.
+    Works on models with a final conv layer (ResNet-like).
+    """
+    if not TORCH_AVAILABLE or model is None or transform is None:
+        raise RuntimeError("Torch or model or transform not available for Grad-CAM")
+
+    model.eval()
+    img = Image.open(img_path).convert('RGB')
+    inp = transform(img).unsqueeze(0)  # [1,3,224,224]
+
+    # find last conv module name (heuristic)
+    target_layer = None
+    for name, module in reversed(list(model.named_modules())):
+        # pick first Conv2d that is not the final fc
+        if isinstance(module, torch.nn.Conv2d):
+            target_layer = name
+            break
+    if target_layer is None and hasattr(model, 'layer4'):
+        target_layer = 'layer4'
+
+    activations = {}
+    gradients = {}
+
+    def forward_hook(module, inp, out):
+        activations['value'] = out.detach()
+
+    def backward_hook(module, grad_in, grad_out):
+        gradients['value'] = grad_out[0].detach()
+
+    # register hooks on the identified layer
+    hook_registered = False
+    for name, mod in model.named_modules():
+        if name == target_layer:
+            mod.register_forward_hook(forward_hook)
+            mod.register_backward_hook(backward_hook)
+            hook_registered = True
+            break
+
+    if not hook_registered:
+        # try layer4 fallback
+        if hasattr(model, 'layer4'):
+            model.layer4.register_forward_hook(forward_hook)
+            model.layer4.register_backward_hook(backward_hook)
+        else:
+            raise RuntimeError("Cannot find conv layer for Grad-CAM")
+
+    # forward pass
+    out = model(inp)
+    if out.dim() == 1:
+        out = out.unsqueeze(0)
+    if target_index is None:
+        target_index = int(torch.argmax(out, dim=1).item())
+    score = out[0, target_index]
+
+    model.zero_grad()
+    score.backward(retain_graph=True)
+
+    if 'value' not in activations or 'value' not in gradients:
+        raise RuntimeError("Grad-CAM hooks didn't capture activations/gradients")
+
+    act = activations['value'][0].cpu().numpy()         # C,H,W
+    grad = gradients['value'][0].cpu().numpy()          # C,H,W
+    weights = np.mean(grad, axis=(1,2))                 # C
+    cam = np.zeros(act.shape[1:], dtype=np.float32)     # H,W
+    for i, w in enumerate(weights):
+        cam += w * act[i]
+    cam = np.maximum(cam, 0)
+    cam = cam - np.min(cam)
+    if np.max(cam) > 0:
+        cam = cam / np.max(cam)
+    cam = cv2.resize(cam, (img.size[0], img.size[1]))
+    heatmap = (cam * 255).astype(np.uint8)
+    heatmap = cv2.applyColorMap(heatmap, cv2.COLORMAP_JET)
+    orig = cv2.cvtColor(np.array(img), cv2.COLOR_RGB2BGR)
+    overlay = cv2.addWeighted(orig, 0.6, heatmap, 0.4, 0)
+    cv2.imwrite(out_path, overlay)
+    return out_path
+
+# ---- Prediction helpers ----
 
 def validate_xray(image_path):
     """
@@ -410,48 +472,39 @@ def validate_xray(image_path):
     - non_bone_xray
     - non_xray
 
-    Final mapping (LOCKED):
+    Mapping default:
     0 -> bone_xray (VALID)
     1 -> non_bone_xray
     2 -> non_xray
     """
-    # If Keras model available, use it. If not, fallback to heuristic edge method.
     try:
-        if TF_AVAILABLE and xray_model is not None:
-            img = load_img(image_path, target_size=(224, 224))
-            img_array = img_to_array(img) / 255.0
-            img_array = np.expand_dims(img_array, axis=0).astype(np.float32)
-            preds = xray_model.predict(img_array)
-            # adapt shape
-            if isinstance(preds, list):
-                preds_arr = np.array(preds[-1])
-            else:
-                preds_arr = np.array(preds)
-            # choose predicted class
-            idx = int(np.argmax(preds_arr[0]))
-            confidence = float(np.max(preds_arr[0]))
-            # Locked mapping: 0 -> bone_xray, 1 -> non_bone_xray, 2 -> non_xray
-            if idx == 0:
-                return "bone_xray", True, confidence
-            elif idx == 1:
-                return "non_bone_xray", False, confidence
-            else:
-                return "non_xray", False, confidence
+        if TORCH_AVAILABLE and xray_torch_model and torch_transform:
+            img = Image.open(image_path).convert('RGB')
+            t = torch_transform(img).unsqueeze(0)
+            with torch.no_grad():
+                out = xray_torch_model(t)
+            if out.dim() == 1:
+                out = out.unsqueeze(0)
+            probs = F.softmax(out, dim=1).cpu().numpy()[0]
+            idx = int(np.argmax(probs))
+            confidence = float(probs[idx])
+            label = xray_class_map.get(idx, xray_class_map.get(0, "non_xray"))
+            return label, (label == "bone_xray"), confidence
+
+        # heuristic fallback: count edges ratio (works moderately)
+        img = cv2.imread(image_path, 0)
+        if img is None:
+            return "non_xray", False, 0.0
+        h, w = img.shape[:2]
+        edges = cv2.Canny(img, 50, 150)
+        edge_count = np.sum(edges > 0)
+        ratio = edge_count / (h * w + 1e-8)
+        # heuristic thresholds: tuned conservatively
+        if ratio > 0.0035:
+            # likely some X-ray-like structure; we can't distinguish bone vs non-bone, mark as non_bone_xray
+            return "non_bone_xray", False, float(min(0.99, ratio * 100.0))
         else:
-            # heuristic fallback: count edges ratio (works moderately)
-            img = cv2.imread(image_path, 0)
-            if img is None:
-                return "non_xray", False, 0.0
-            h, w = img.shape[:2]
-            edges = cv2.Canny(img, 50, 150)
-            edge_count = np.sum(edges > 0)
-            ratio = edge_count / (h * w + 1e-8)
-            # heuristic thresholds: tuned conservatively
-            if ratio > 0.0035:
-                # likely some X-ray-like structure; we can't distinguish bone vs non-bone, mark as non_bone_xray
-                return "non_bone_xray", False, float(min(0.99, ratio * 100.0))
-            else:
-                return "non_xray", False, float(1.0 - min(0.99, ratio * 100.0))
+            return "non_xray", False, float(1.0 - min(0.99, ratio * 100.0))
     except Exception as e:
         safe_log(f"validate_xray error: {e}", "ERROR")
         return "error", False, 0.0
@@ -471,8 +524,6 @@ def predict_binary(image_path):
             with torch.no_grad():
                 out = binary_model(t)
                 probs = F.softmax(out, dim=1).cpu().numpy()[0]
-            # We don't know exact class ordering of your binary model; attempt common ordering:
-            # assume index 0 => Fracture, index 1 => Normal. But if num_classes==1 handle accordingly.
             if len(probs) >= 2:
                 fracture_prob = float(probs[0])
                 normal_prob = float(probs[1])
@@ -481,12 +532,10 @@ def predict_binary(image_path):
                 else:
                     return "Normal", normal_prob
             else:
-                # fallback
                 val = float(probs[0])
                 return ("Fractured" if val > 0.5 else "Normal"), val
         except Exception as e:
             safe_log(f"binary predict error: {e}", "ERROR")
-    # fallback default
     return "Normal", 0.5
 
 def predict_multi(image_path):
@@ -559,8 +608,6 @@ def generate_pdf_report(result_row, out_pdf_path):
     c.drawString(50, 625, f"X-Ray Validation: {result_row.get('stage', 'N/A')}")
     c.drawString(50, 610, f"Prediction: {result_row.get('predicted', 'N/A')}")
     c.drawString(50, 595, f"Confidence: {round(result_row.get('confidence', 0.0), 4)}")
-
-    # <-- Removed disclaimer section as requested -->
 
     multiclass = result_row.get("fracture_type")
     if multiclass:
@@ -959,19 +1006,32 @@ def xrayvalidation():
     canny_path = os.path.join(RESULT_FOLDER, canny_name)
     hybrid_path = os.path.join(RESULT_FOLDER, hybrid_name)
 
-    # GRADCAM
+    # GRADCAM (PyTorch)
     try:
-        if TF_AVAILABLE and xray_model:
-            generate_gradcam_keras(filepath, grad_path, model=xray_model)
+        if TORCH_AVAILABLE and xray_torch_model and torch_transform:
+            try:
+                generate_gradcam_torch(filepath, grad_path, model=xray_torch_model, transform=torch_transform)
+            except Exception as e:
+                safe_log(f"Grad-CAM (torch) failed: {e}", "ERROR")
+                # fallback — simple color map overlay from grayscale/original
+                gray = cv2.imread(filepath, 0)
+                if gray is not None:
+                    heat = cv2.applyColorMap(gray, cv2.COLORMAP_JET)
+                    cv2.imwrite(grad_path, heat)
+                else:
+                    orig = cv2.imread(filepath)
+                    if orig is not None:
+                        cv2.imwrite(grad_path, orig)
         else:
+            # fallback simple visualization
             gray = cv2.imread(filepath, 0)
-            if gray is None:
-                # fallback - copy original
-                orig = cv2.imread(filepath)
-                cv2.imwrite(grad_path, orig)
-            else:
+            if gray is not None:
                 heat = cv2.applyColorMap(gray, cv2.COLORMAP_JET)
                 cv2.imwrite(grad_path, heat)
+            else:
+                orig = cv2.imread(filepath)
+                if orig is not None:
+                    cv2.imwrite(grad_path, orig)
     except Exception as e:
         safe_log(f"Grad-CAM error: {e}", "ERROR")
         grad_path = None
@@ -993,7 +1053,6 @@ def xrayvalidation():
     # =====================================================================
     # ---------------- STEP 5: SAVE FULL RESULT TO DATABASE ---------------
     # =====================================================================
-    # NOTE: save fracture_type into DB (multi_label may be None)
     rid = save_result_record(
         user_id,
         filename,
@@ -1026,7 +1085,7 @@ def xrayvalidation():
     safe_log(f"✅ Sending AI JSON response (result_id={rid})")
     return jsonify(response)
 
-# Explain route (keeps behavior from your code; uses validate_xray/predict_xray)
+# Explain route (uses PyTorch xray model)
 @app.route('/explain', methods=['GET','POST'])
 @app.route('/explain/<image_name>', methods=['GET','POST'])
 @login_required
@@ -1051,8 +1110,14 @@ def explain(image_name=None):
             canny_path = os.path.join(RESULT_FOLDER, f"canny_{filename}")
             hybrid_path = os.path.join(RESULT_FOLDER, f"hybrid_{filename}")
             try:
-                if TF_AVAILABLE and xray_model:
-                    generate_gradcam_keras(fp, grad_path, model=xray_model)
+                if TORCH_AVAILABLE and xray_torch_model and torch_transform:
+                    try:
+                        generate_gradcam_torch(fp, grad_path, model=xray_torch_model, transform=torch_transform)
+                    except Exception as e:
+                        safe_log(f"Grad-CAM (torch) failed in explain: {e}", "ERROR")
+                        img = cv2.imread(fp)
+                        if img is not None:
+                            cv2.imwrite(grad_path, img)
                 else:
                     img = cv2.imread(fp)
                     if img is not None:
@@ -1114,24 +1179,28 @@ def list_routes():
 
 def debug_one_image(path):
     print("---- DEBUG:", path)
-    if TF_AVAILABLE and xray_model:
-        arr = np.array(Image.open(path).convert('RGB').resize((224,224))).astype(np.float32)/255.0
-        p = xray_model.predict(np.expand_dims(arr,0))
-        print("keras xray pred:", p, "shape:", getattr(p,'shape',None))
+    if TORCH_AVAILABLE and xray_torch_model and torch_transform:
+        t = torch_transform(Image.open(path).convert('RGB')).unsqueeze(0)
+        with torch.no_grad():
+            out = xray_torch_model(t)
+            if out.dim()==1:
+                out = out.unsqueeze(0)
+            probs = F.softmax(out, dim=1).cpu().numpy()[0]
+            print("torch xray probs:", probs, "argmax:", np.argmax(probs))
     if TORCH_AVAILABLE and binary_model and torch_transform:
         t = torch_transform(Image.open(path).convert('RGB')).unsqueeze(0)
         with torch.no_grad():
             out = binary_model(t)
             probs = F.softmax(out, dim=1).cpu().numpy()[0]
             print("torch binary probs:", probs, "argmax:", np.argmax(probs))
-    if TORCH_AVAILABLE and multi_model:
+    if TORCH_AVAILABLE and multi_model and torch_transform:
         t = torch_transform(Image.open(path).convert('RGB')).unsqueeze(0)
         with torch.no_grad():
             out = multi_model(t)
             probs = F.softmax(out, dim=1).cpu().numpy()[0]
             print("torch multi probs:", probs[:5], "...", "argmax:", np.argmax(probs))
 
-# ---- startup ----
+# ---- test_mapping now uses PyTorch xray model ----
 @app.route('/test_mapping', methods=['POST'])
 def test_mapping():
     if 'file' not in request.files:
@@ -1142,51 +1211,47 @@ def test_mapping():
     filepath = os.path.join(UPLOAD_FOLDER, filename)
     file.save(filepath)
 
-    if not TF_AVAILABLE or not xray_model:
-        return "❌ Model not loaded", 500
-
-    # Load & preprocess
-    img = tf.keras.preprocessing.image.load_img(filepath, target_size=(224, 224))
-    img = tf.keras.preprocessing.image.img_to_array(img)
-    img = np.expand_dims(img, axis=0) / 255.0
-    preds = xray_model.predict(img)[0]
-
-    # SIX POSSIBLE MAPPINGS
-    mappings = [
-        {0:"bone_xray", 1:"non_bone_xray", 2:"non_xray"},
-        {0:"bone_xray", 2:"non_bone_xray", 1:"non_xray"},
-        {1:"bone_xray", 0:"non_bone_xray", 2:"non_xray"},
-        {1:"bone_xray", 2:"non_bone_xray", 0:"non_xray"},
-        {2:"bone_xray", 0:"non_bone_xray", 1:"non_xray"},
-        {2:"bone_xray", 1:"non_bone_xray", 0:"non_xray"},
-    ]
-
-    result = []
-    for i, mapping in enumerate(mappings, start=1):
-        predicted_class = int(np.argmax(preds))
-        result.append({
-            "mapping_number": i,
-            "mapping_used": mapping,
-            "predicted_label": mapping[predicted_class],
-            "raw_pred_vector": preds.tolist()
+    if TORCH_AVAILABLE and xray_torch_model and torch_transform:
+        img = Image.open(filepath).convert('RGB')
+        t = torch_transform(img).unsqueeze(0)
+        with torch.no_grad():
+            out = xray_torch_model(t)
+        if out.dim() == 1:
+            out = out.unsqueeze(0)
+        probs = F.softmax(out, dim=1).cpu().numpy()[0].tolist()
+        argmax = int(np.argmax(probs))
+        return jsonify({
+            "backend": "pytorch",
+            "model_loaded": True,
+            "num_classes": len(probs),
+            "softmax": probs,
+            "argmax": argmax,
+            "mapping_used": xray_class_map,
+            "predicted_label": xray_class_map.get(argmax, "unknown")
         })
 
-    return jsonify(result)
+    return "No PyTorch xray model available", 500
 
 @app.route('/inspect_model')
 def inspect_model():
     try:
-        sample = np.random.rand(1,224,224,3).astype('float32')
-        preds = xray_model.predict(sample)[0].tolist()
-
-        return jsonify({
-            "model_loaded": bool(xray_model),
-            "output_length": len(preds),
-            "raw_output": preds,
-            "argmax_index": int(np.argmax(preds)),
-            "softmax_sum": float(sum(preds))
-        })
-
+        if TORCH_AVAILABLE and xray_torch_model and torch_transform:
+            sample = torch.zeros(1,3,224,224)
+            with torch.no_grad():
+                out = xray_torch_model(sample)
+            if out.dim()==1:
+                out = out.unsqueeze(0)
+            preds = F.softmax(out, dim=1).cpu().numpy()[0].tolist()
+            return jsonify({
+                "backend": "pytorch",
+                "model_loaded": True,
+                "output_length": len(preds),
+                "raw_output": preds,
+                "argmax_index": int(np.argmax(preds)),
+                "softmax_sum": float(sum(preds))
+            })
+        else:
+            return jsonify({"error": "No PyTorch xray model loaded"})
     except Exception as e:
         return jsonify({"error": str(e)})
 
