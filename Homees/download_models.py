@@ -7,7 +7,7 @@ os.makedirs(MODEL_DIR, exist_ok=True)
 MODEL_URLS = {
     "MODEL_URL_BINARY": "binary_classifier.pt",
     "MODEL_URL_MULTI": "multi_classifier.pth",
-    "MODEL_URL_MOBILENET": "mobilenetv2_xray_classifier.h5",
+    "MODEL_URL_MOBILENET": "xray_validation_model.pt",
 }
 
 for env_var, filename in MODEL_URLS.items():
@@ -23,3 +23,4 @@ for env_var, filename in MODEL_URLS.items():
             if chunk:
                 f.write(chunk)
     print(f"✅ Saved {filename}")
+
