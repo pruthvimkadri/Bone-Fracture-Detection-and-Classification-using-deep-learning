@@ -1,11 +1,9 @@
 # Bone Fracture Detection and Classification using Deep Learning and Computer Vision
 
 ## Overview
-
 Bone fractures are among the most common medical injuries and often require expert radiologists for accurate diagnosis and classification from X-ray images. Manual interpretation can be time-consuming and may lead to inconsistencies in high-volume clinical environments.
 
 This project presents an AI-powered web application that performs automated bone fracture detection and classification using Deep Learning and Computer Vision techniques. The system validates uploaded images, detects fractures, classifies fracture types, and generates explainable visualizations for educational and diagnostic support.
-
 The application is built using Flask, PyTorch, OpenCV, and cloud-ready deployment architecture.
 
 # Research Publication
@@ -64,8 +62,8 @@ The system supports classification of the following fracture types:
 8. Oblique Fracture
 9. Pathological Fracture
 10. Spiral Fracture
-11. Transverse Fracture
-12. 
+11. Unknown Fracture
+
 # Technology Stack
 
 | Component | Technology |
@@ -170,9 +168,7 @@ bash
 python main.py
 
 # Deployment Architecture
-
 The project architecture was designed to support scalable cloud deployment using Flask, Gunicorn, and Render-compatible backend configuration.
-
 During development, deployment experiments highlighted practical challenges associated with large deep learning model hosting on low-resource cloud environments.
 
 The application includes:
@@ -180,7 +176,7 @@ The application includes:
 - Cloud-ready backend organization
 - Model download pipeline support
 - Deployment-compatible project modularization
-- 
+
 Future optimization strategies may include:
 - Model quantization
 - ONNX/TensorRT optimization
@@ -224,10 +220,7 @@ This project provided practical experience in:
 - Improved uncertainty estimation
 - Multi-modal medical analysis
 
----
-
 # Contributors
-
 - Vinay P
 - Pruthvi M Kadri
 - Mehak Sharma
