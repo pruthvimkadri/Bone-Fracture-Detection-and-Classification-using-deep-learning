@@ -1,155 +1,235 @@
-🦴 Bone Fracture Detection and Classification using Deep Learning & Computer Vision
-📌 Project Overview
-Bone fractures are one of the most common medical injuries. Detecting and identifying fracture types manually from X-rays is time-consuming and requires expert radiologists.
-This project introduces an AI-powered Flask web application that can:
+# Bone Fracture Detection and Classification using Deep Learning and Computer Vision
 
-✅ Validate whether the uploaded image is a real bone X-ray
-✅ Detect if a fracture exists (Binary Classification)
-✅ Classify the fracture into 11 different medical fracture types
-✅ Generate AI-assisted heatmap visualizations (Grad-CAM like output + Canny Edge hybrid for learning)
-✅ Store user results and reports for later reference
-✅ Be deployed to the cloud using Render + Gunicorn WSGI server
+## Overview
 
-🧠 How the System Works (Backend Logic)
+Bone fractures are among the most common medical injuries and often require expert radiologists for accurate diagnosis and classification from X-ray images. Manual interpretation can be time-consuming and may lead to inconsistencies in high-volume clinical environments.
 
-User uploads an image via the Web UI
+This project presents an AI-powered web application that performs automated bone fracture detection and classification using Deep Learning and Computer Vision techniques. The system validates uploaded images, detects fractures, classifies fracture types, and generates explainable visualizations for educational and diagnostic support.
 
-App runs X-ray validation
+The application is built using Flask, PyTorch, OpenCV, and cloud-ready deployment architecture.
 
-If valid X-ray ✅ → fracture detection is executed using PyTorch model
+# Research Publication
 
-If fracture detected ✅ → multiclass classifier identifies fracture type among 11 classes
+## Paper Title
+An Explainable Deep Learning Framework for Automated Bone Fracture Detection and Classification
 
-Output images + analysis reports are saved in:
+## Conference
+2026 International Conference on Emerging Systems and Intelligent Computing (ESIC)
 
-backend/static/uploads/
+## Authors
+Vinay P  
+Pruthvi M Kadri  
+Mehak Sharma  
+Moulya Suvarna  
+Pooja
 
+📄 IEEE Xplore Publication:  
+[An Explainable Deep Learning Framework for Automated Bone Fracture Detection and Classification](https://ieeexplore.ieee.org/document/11496076?source=document-share&dld=Z21haWwuY29t)
 
-Users can view:
+# Features
+- X-ray image validation before inference
+- Binary fracture detection
+- Multi-class fracture classification
+- Explainable AI visualizations using Grad-CAM
+- Edge-enhanced hybrid visualizations using Canny Edge Detection
+- Confidence score generation
+- Report generation and storage
+- Flask-based interactive web application
+- Cloud-ready backend architecture
+- Modular deployment structure for scalable environments
 
-Original image
+# System Workflow
+text
+User Uploads X-ray Image
+            ↓
+X-ray Validation Module
+            ↓
+Binary Fracture Detection
+            ↓
+Multi-Class Fracture Classification
+            ↓
+Grad-CAM and Hybrid Visualization
+            ↓
+Result Storage and Report Generation
 
-Canny Edge result
+# Fracture Classes Supported
+The system supports classification of the following fracture types:
+1. Avulsion Fracture
+2. Comminuted Fracture
+3. Fracture Dislocation
+4. Greenstick Fracture
+5. Hairline Fracture
+6. Impacted Fracture
+7. Longitudinal Fracture
+8. Oblique Fracture
+9. Pathological Fracture
+10. Spiral Fracture
+11. Transverse Fracture
+12. 
+# Technology Stack
 
-AI heatmap overlay
+| Component | Technology |
+|---|---|
+| Backend Framework | Flask |
+| Deep Learning Framework | PyTorch |
+| Image Processing | OpenCV, NumPy |
+| Frontend | HTML, CSS, JavaScript |
+| Deployment Architecture | Gunicorn, Render-ready setup |
+| Optional Database | MongoDB / SQLite |
+| Model Format | .pt / .pth |
 
-Hybrid visualization
+# Explainable AI and Visualization
+The project integrates Explainable AI techniques to improve transparency and interpretability of model predictions.
+## Visualization Modules
+### Grad-CAM Visualization
+Highlights important regions influencing the model prediction.
 
-Classification confidence
+### Canny Edge Detection
+Enhances fracture boundaries and edge structures.
 
-🗂️ Folder Structure
+### Hybrid Visualization
+Combines Grad-CAM overlays with edge detection outputs for educational analysis and visual interpretability.
+
+# Application Screenshots
+
+## Home Page
+<img width="1911" height="910" alt="image" src="https://github.com/user-attachments/assets/2f40f6e8-3f06-4aaf-91b9-13e563a333c8" />
+
+## Signup Page
+<img width="1524" height="895" alt="Screenshot (1828)" src="https://github.com/user-attachments/assets/8709ba26-ab38-4c5c-8d89-44aeff2d39d0" />
+
+## otp verify Page
+<img width="1785" height="513" alt="Screenshot (1826)" src="https://github.com/user-attachments/assets/de8b9d19-f2d6-44e2-89a7-8a2229a3d497" />
+
+## login Page
+<img width="1768" height="546" alt="Screenshot (1825)" src="https://github.com/user-attachments/assets/d3a10d64-5c1a-4734-80c9-2d73837ae66f" />
+
+## X-ray Upload Interface
+<img width="1871" height="835" alt="Screenshot (1821)" src="https://github.com/user-attachments/assets/66b6fb94-abfc-4eb5-8ea9-e60a6741f41c" />
+
+## Fracture Prediction Output
+<img width="1858" height="910" alt="Screenshot (1822)" src="https://github.com/user-attachments/assets/5e719489-6f8e-4c85-88a5-7982c4535998" />
+
+## PDF Report
+<img width="638" height="827" alt="Screenshot (1824)" src="https://github.com/user-attachments/assets/3885d09c-a021-4a66-929c-b083c19255a7" />
+
+# Model Pipeline
+
+## Step 1: X-ray Validation
+The uploaded image is first validated to determine whether it is a legitimate bone X-ray image.
+
+## Step 2: Binary Fracture Detection
+The validated image is passed through a binary classification model to detect the presence or absence of fractures.
+
+## Step 3: Multi-Class Fracture Classification
+If a fracture is detected, the image is classified into one of the supported fracture categories.
+
+## Step 4: Explainable Visualization
+Grad-CAM and Canny Edge visualizations are generated for interpretability and educational support.
+
+## Step 5: Result Storage
+Prediction results and generated outputs are stored for future reference and reporting.
+
+# Folder Structure
+text
 Bone-Fracture-Detection-and-Classification/
 │
 ├── Homees/
-│   ├── main.py                     ← Flask application
-│   ├── wsgi.py                     ← WSGI entry point for deployment
-│   ├── download_models.py           ← Used to download models in cloud before server starts
-│   ├── requirements.txt             ← Dependencies list
+│   ├── main.py
+│   ├── wsgi.py
+│   ├── download_models.py
+│   ├── requirements.txt
 │   ├── static/
 │   │   ├── css/
 │   │   ├── js/
-│   │   ├── models/                  ← Empty placeholder (models will be downloaded in cloud)
-│   │   └── uploads/                 ← Empty folder (results stored here in deployed builds)
+│   │   ├── models/
+│   │   └── uploads/
 │   └── templates/
 │
-├── .gitignore                      ← Prevents large model files from being pushed
-└── README.md                       ← Project documentation (this file)
+├── .gitignore
+└── README.md
 
-🔧 Tech Stack
-Component	Technology
-Backend Server	Flask (Python)
-Model Serving	PyTorch (.pt, .pth)
-Image Processing	OpenCV, NumPy
-Deployment	Gunicorn, Render Cloud
-Storage (optional)	MongoDB, SQLite
-Frontend UI	HTML, CSS, JavaScript
-☁️ Deployment Status
-
-Hosted on Render Free Web Service (512MB RAM limit)
-
-Models are auto-downloaded at build time from Hugging Face
-
-Server runs using:
-
-gunicorn wsgi:app
+# Installation Guide
+## Clone Repository
+bash
+git clone <repository-link>
 
 
-Live application URL: 🎉 (auto generated by render at deploy)
+## Navigate to Project Directory
+bash
+cd Homees/
 
-🚫 .gitignore Rules Applied
 
-Large model files and local env configs are ignored for GitHub using:
+## Install Dependencies
+bash
+pip install -r requirements.txt
 
+
+## Run Application
+bash
+python main.py
+
+# Deployment Architecture
+
+The project architecture was designed to support scalable cloud deployment using Flask, Gunicorn, and Render-compatible backend configuration.
+
+During development, deployment experiments highlighted practical challenges associated with large deep learning model hosting on low-resource cloud environments.
+
+The application includes:
+- WSGI deployment structure
+- Cloud-ready backend organization
+- Model download pipeline support
+- Deployment-compatible project modularization
+- 
+Future optimization strategies may include:
+- Model quantization
+- ONNX/TensorRT optimization
+- Lightweight inference pipelines
+- GPU-enabled deployment services
+# Model Storage Strategy
+Large model files are excluded from GitHub using .gitignore and handled separately to maintain repository efficiency.
+## Ignored Files
+text
 *.pt
-*.pt
-*.pt
+*.pth
 .env
 static/models/
 static/uploads/
 __pycache__/
 .venv/
+# Key Contributions
+- AI-powered fracture classification system
+- Explainable AI visualization integration
+- Hybrid Grad-CAM and edge-enhanced analysis
+- Flask backend and UI integration
+- Deployment architecture preparation
+- Automated model management workflow
+- Educational visualization framework
+# Learning Outcomes
+This project provided practical experience in:
+- Deep Learning model development
+- Medical image processing
+- Explainable AI techniques
+- OpenCV-based preprocessing
+- Flask backend development
+- Cloud deployment architecture concepts
+- Understanding deployment limitations in low-resource environments
+- GitHub project structuring and deployment workflows
+# Future Enhancements
+- 3D fracture detection pipeline
+- Mobile deployment using TensorFlow Lite
+- REST API integration for hospital systems
+- Real-time doctor feedback integration
+- Continual learning framework
+- Improved uncertainty estimation
+- Multi-modal medical analysis
 
-🎯 Key Features
+---
 
-AI classification trained on bone fracture datasets
+# Contributors
 
-Supports 11 fracture types
-
-Confidence score for each prediction
-
-Educational hybrid output visuals
-
-Report generation for uploads
-
-Login system & stored result history
-
-Ready for cloud hosting
-
-📚 Learnings / Outcomes
-
-Through this project we gained hands-on experience in:
-
-✔ Deploying ML models on cloud efficiently
-✔ Using OpenCV for edge-based validations
-✔ Model inference using PyTorch in low-resource environments
-✔ Flask backend routing + UI integration
-✔ Hosting scalable web services using Gunicorn WSGI
-✔ Managing large ML models using GitHub ignore + cloud download strategy
-
-🛠 Installation Guide (Local Setup)
-git clone <your-repo-link>
-cd Homees/
-pip install -r requirements.txt
-python main.py
-
-▶ Running the App on Cloud
-
-The app is hosted using Render build command:
-
-pip install -r requirements.txt && python download_models.py
-
-
-Gunicorn automatically starts using:
-
-gunicorn wsgi:app
-
-
-Image Preprocessing & Enhancements
-
-Canny Edge & Dataset Handling
-
-Fracture Detection Model Training (PyTorch)
-
-Model Testing & Evaluation
-
-UI & Cloud Deployment
-
-⭐ Future Enhancements
-
-Add 3D fracture detection pipeline
-
-Deploy mobile inference using TensorFlow Lite
-
-Add REST API for hospital integration
-
-Use doctor feedback for continual learning
+- Vinay P
+- Pruthvi M Kadri
+- Mehak Sharma
+- Moulya Suvarna
+- Pooja
